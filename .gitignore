@@ -2,3 +2,5 @@ config.ini
 venv/
 .idea/
 *.log
+kik-bot-api-unofficial/
+latest_captcha_result.txt
