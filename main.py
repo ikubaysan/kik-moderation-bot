@@ -16,20 +16,6 @@ import threading
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def run_async_task(coroutine):
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        # Create a new loop since one does not exist in this thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        # This is important: Start the loop in this thread
-        threading.Thread(target=loop.run_forever).start()
-
-    # Ensure the coroutine is scheduled in the right loop
-    asyncio.run_coroutine_threadsafe(coroutine, loop)
-
-
 class KikBot(KikClientCallback):
     def __init__(self):
         self.load_config()
@@ -103,7 +89,6 @@ class KikBot(KikClientCallback):
         # Wait for on_peer_info_received to be called
         await self.info_event.wait()
 
-
         logging.info(f"on_peer_info_received() info_event set after calling get_info_of_users()")
         self.info_event = asyncio.Event()
         return self.on_peer_info_received_response
@@ -137,9 +122,8 @@ class KikBot(KikClientCallback):
             self.send_troll_message(group_jid=chat_message.group_jid)
 
         if "command" in chat_message.body:
-            # asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
-            run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid,
-                                               group_jid=chat_message.group_jid))
+             asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
+             # run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
 
         return
 
@@ -151,8 +135,8 @@ class KikBot(KikClientCallback):
         logging.info(f"Received a DM from {chat_message.from_jid}: {chat_message.body}")
 
         if "command" in chat_message.body:
-            # asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
-            run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
+            asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
+            # run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
 
     async def get_admin_username_from_jid(self, jid: str):
         """
