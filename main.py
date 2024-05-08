@@ -31,11 +31,16 @@ class KikBot(KikClientCallback):
         #some_random_device_id = random_device_id()
         #some_random_android_id = random_android_id()
 
+        # kik_node is everything in self.user_jid before the @ symbol
+        kik_node = self.user_jid.split('@')[0]
+
         self.client = KikClient(callback=self,
                                 kik_username=self.username,
                                 kik_password=self.password,
+                                kik_node=kik_node,
                                 device_id=self.device_id,
                                 android_id=self.android_id)
+
         self.on_peer_info_received_response: PeersInfoResponse = None
         self.info_event = asyncio.Event()
         self.admin_pics = {}
@@ -46,6 +51,7 @@ class KikBot(KikClientCallback):
         config_path = os.path.abspath('config.ini')
         config.read(config_path)
         self.username = config.get('credentials', 'username')
+        self.user_jid = config.get('credentials', 'user_jid')
         self.password = config.get('credentials', 'password')
         self.admin_usernames = [username.strip() for username in config.get('admin', 'usernames').split(',')]
         self.device_id = config.get('device', 'device_id')
@@ -105,8 +111,27 @@ class KikBot(KikClientCallback):
             logging.info(f"Captcha solving required: {login_error.captcha_url}")
             login_error.solve_captcha_wizard(self.client)
 
+
+    def send_troll_message_if_needed(self, group_jid: str, from_jid: str):
+        if from_jid != "uvymq6qm2mlvy7dm4fa2ettadghi5xutrqhoh2d4lrfd7h75gcna_a@talk.kik.com":
+            return
+        if group_jid is None:
+            return
+        logging.info(f"Sending troll message to {group_jid} because the sender is a troll.")
+        self.send_troll_message(group_jid=group_jid)
+        logging.info(f"Sent troll message to {group_jid}")
+
+    def on_gif_received(self, response: chatting.IncomingGifMessage):
+        logging.info(f"Received a gif message from {response.from_jid}")
+        self.send_troll_message_if_needed(group_jid=response.group_jid, from_jid=response.from_jid)
+
+    def on_video_received(self, response: chatting.IncomingVideoMessage):
+        logging.info(f"Received a video message from {response.from_jid}")
+        self.send_troll_message_if_needed(group_jid=response.group_jid, from_jid=response.from_jid)
+
     def on_image_received(self, response: chatting.IncomingImageMessage):
         logging.info(f"Received an image message from {response.from_jid}")
+        self.send_troll_message_if_needed(group_jid=response.group_jid, from_jid=response.from_jid)
 
     def on_group_message_received(self, chat_message: IncomingGroupChatMessage):
         """
@@ -116,13 +141,11 @@ class KikBot(KikClientCallback):
         """
         logging.info(f"Received a group message from {chat_message.from_jid}: {chat_message.body}")
 
-        send_troll_message_needed = (chat_message.from_jid == "uvymq6qm2mlvy7dm4fa2ettadghi5xutrqhoh2d4lrfd7h75gcna_a@talk.kik.com")
-        if send_troll_message_needed:
-            logging.info(f"Sending troll message to {chat_message.group_jid} because the sender is a troll.")
-            self.send_troll_message(group_jid=chat_message.group_jid)
+        self.send_troll_message_if_needed(group_jid=chat_message.group_jid, from_jid=chat_message.from_jid)
 
         if "command" in chat_message.body:
-             asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
+            logging.info(f"Handling command: {chat_message.body}")
+            self.client.loop.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
              # run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid, group_jid=chat_message.group_jid))
 
         return
@@ -135,7 +158,8 @@ class KikBot(KikClientCallback):
         logging.info(f"Received a DM from {chat_message.from_jid}: {chat_message.body}")
 
         if "command" in chat_message.body:
-            asyncio.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
+            logging.info(f"Handling command: {chat_message.body}")
+            self.client.loop.create_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
             # run_async_task(self.handle_command(command=chat_message.body, from_jid=chat_message.from_jid))
 
     async def get_admin_username_from_jid(self, jid: str):
@@ -170,7 +194,7 @@ class KikBot(KikClientCallback):
 
         admin_username = await self.get_admin_username_from_jid(from_jid)
 
-        logging.info(f"Admin username: {admin_username}")
+        logging.info(f"Matched admin username: {admin_username}")
 
         if admin_username and "add_as_friend" in command and not group_jid:
             logging.info(f"Adding {from_jid} as a friend.")
