@@ -69,6 +69,12 @@ class KikBot(KikClientCallback):
         asyncio.create_task(self.get_admin_info())
         logging.info(f"Got admin info: {self.admin_pics}")
 
+    def send_ping(self):
+        self.client.send_ping()
+
+    def get_my_profile(self):
+        self.client.get_my_profile()
+
     async def get_admin_info(self):
         logging.info(f"Getting admin info for {self.admin_usernames}")
         for admin_username in self.admin_usernames:
@@ -113,7 +119,9 @@ class KikBot(KikClientCallback):
 
 
     def send_troll_message_if_needed(self, group_jid: str, from_jid: str):
-        if from_jid != "uvymq6qm2mlvy7dm4fa2ettadghi5xutrqhoh2d4lrfd7h75gcna_a@talk.kik.com":
+        troll_jids = ["de3kmbrca4hhirhm7n7tkixvs2gxhfdxdnt2y2elzswcoqhy7cnq_a@talk.kik.com",
+                      "uvymq6qm2mlvy7dm4fa2ettadghi5xutrqhoh2d4lrfd7h75gcna_a@talk.kik.com"]
+        if from_jid not in troll_jids:
             return
         if group_jid is None:
             return
