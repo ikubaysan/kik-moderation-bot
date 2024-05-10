@@ -67,8 +67,9 @@ class KikBot(KikClientCallback):
         # Schedule get_admin_info coroutine without blocking
         #self.client.loop.create_task(self.schedule_get_admin_info())
         self.client.loop.create_task(self.get_admin_info())
-        self.client.loop.create_task(self.send_ping())
+        #self.client.loop.create_task(self.send_ping())
         #self.client.loop.create_task(self.schedule_ping())
+        self.send_ping()
 
     async def schedule_ping(self):
         while True:
