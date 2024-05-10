@@ -102,28 +102,30 @@ class KikBot(KikClientCallback):
         logging.info(f"Admin pics: {self.admin_pics} ({len(self.admin_pics)} total)")
 
     async def get_info_of_username(self, username: str) -> PeersInfoResponse:
-        logging.info(f"Requesting info for username {username}")
-        # TODO: timeout and return None if no response is received in 60 seconds
-        self.client.request_info_of_username(username)
-        logging.info(f"Requested info for username {username}")
-        await self.info_event.wait()
-        logging.info(f"on_peer_info_received() info_event set after calling get_info_of_username()")
-        self.info_event = asyncio.Event()
-        return self.on_peer_info_received_response
+        while True:
+            logging.info(f"Requesting info for username {username}")
+            self.client.request_info_of_username(username)
+            try:
+                await asyncio.wait_for(self.info_event.wait(), timeout=30)
+                logging.info(f"Information received for username {username}")
+                self.info_event.clear()
+                return self.on_peer_info_received_response
+            except asyncio.TimeoutError:
+                logging.warning(f"Timeout reached while fetching info for {username}, retrying...")
+                self.info_event.clear()
 
     async def get_info_of_users(self, peer_jids: Union[str, List[str]]) -> PeersInfoResponse:
-
-        # TODO: timeout and return None if no response is received in 60 seconds
-        self.client.request_info_of_users(peer_jids)
-        logging.info(f"Requested info for peer jids: {peer_jids}")
-
-
-        # Wait for on_peer_info_received to be called
-        await self.info_event.wait()
-
-        logging.info(f"on_peer_info_received() info_event set after calling get_info_of_users()")
-        self.info_event = asyncio.Event()
-        return self.on_peer_info_received_response
+        while True:
+            logging.info(f"Requesting info for peer jids: {peer_jids}")
+            self.client.request_info_of_users(peer_jids)
+            try:
+                await asyncio.wait_for(self.info_event.wait(), timeout=30)
+                logging.info(f"Information received for peer jids: {peer_jids}")
+                self.info_event.clear()
+                return self.on_peer_info_received_response
+            except asyncio.TimeoutError:
+                logging.warning(f"Timeout reached while fetching info for peer jids {peer_jids}, retrying...")
+                self.info_event.clear()
 
     def on_peer_info_received(self, response: PeersInfoResponse):
         logging.info(f"Received peer info for users: {response.users}")
@@ -160,6 +162,15 @@ class KikBot(KikClientCallback):
     def on_image_received(self, response: chatting.IncomingImageMessage):
         logging.info(f"Received an image message from {response.from_jid}")
         self.send_troll_message_if_needed(group_jid=response.group_jid, from_jid=response.from_jid)
+
+
+    async def cancel_all_tasks(self):
+        tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        [task.cancel() for task in tasks]
+
+        # Optionally wait for all tasks to be cancelled
+        await asyncio.gather(*tasks, return_exceptions=True)
+        logging.info("All tasks have been cancelled.")
 
     def on_group_message_received(self, chat_message: IncomingGroupChatMessage):
         """
@@ -229,11 +240,17 @@ class KikBot(KikClientCallback):
             self.client.add_friend(peer_jid=from_jid)
             self.client.send_chat_message(from_jid, f"Added you as a friend.")
 
-        if admin_username and "send_message" in command and group_jid:
-            # message_to_send will be everything after "send_message" in the command
-            logging.info(f"Sending message to group {group_jid}")
-            message_to_send = command.split("send_message")[1].strip()
-            self.client.send_chat_message(peer_jid=group_jid, message=message_to_send)
+        if admin_username and "send_message" in command:
+            if group_jid:
+                # message_to_send will be everything after "send_message" in the command
+                logging.info(f"Sending message to group {group_jid}")
+                message_to_send = command.split("send_message")[1].strip()
+                self.client.send_chat_message(peer_jid=group_jid, message=message_to_send)
+            elif from_jid:
+                # message_to_send will be everything after "send_message" in the command
+                logging.info(f"Sending DM to {from_jid}")
+                message_to_send = command.split("send_message")[1].strip()
+                self.client.send_chat_message(peer_jid=from_jid, message=message_to_send)
 
         if admin_username and "send_troll_message" in command and group_jid:
             logging.info(f"Sending troll message to group {group_jid}")
@@ -243,8 +260,7 @@ class KikBot(KikClientCallback):
             logging.info(f"Getting admin info.")
             await self.get_admin_info()
 
-        pass
-
+        logging.info(f"Command handling complete.")
 
 # Usage
 if __name__ == '__main__':
