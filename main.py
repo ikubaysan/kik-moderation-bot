@@ -11,7 +11,6 @@ import logging
 from kik_unofficial.utilities.credential_utilities import random_device_id, random_android_id
 import asyncio
 import time
-import threading
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -66,17 +65,32 @@ class KikBot(KikClientCallback):
     def on_authenticated(self) -> NoReturn:
         logging.info("Bot has been authenticated successfully!")
         # Schedule get_admin_info coroutine without blocking
-        asyncio.create_task(self.get_admin_info())
-        logging.info(f"Got admin info: {self.admin_pics}")
+        #self.client.loop.create_task(self.schedule_get_admin_info())
+        self.client.loop.create_task(self.get_admin_info())
+        self.client.loop.create_task(self.send_ping())
+        #self.client.loop.create_task(self.schedule_ping())
+
+    async def schedule_ping(self):
+        while True:
+            await asyncio.sleep(60)
+            self.send_ping()
+
+    async def schedule_get_admin_info(self):
+        while True:  # This creates a continuous loop
+            await self.get_admin_info()
+            await asyncio.sleep(60)  # Wait for 60 seconds before the next call
 
     def send_ping(self):
+        logging.info("Sending ping.")
         self.client.send_ping()
+        logging.info("Sent ping.")
+
 
     def get_my_profile(self):
         self.client.get_my_profile()
 
     async def get_admin_info(self):
-        logging.info(f"Getting admin info for {self.admin_usernames}")
+        logging.info(f"Getting admin info for usernames: {self.admin_usernames}")
         for admin_username in self.admin_usernames:
             await self.get_info_of_username(admin_username)
             pic = self.on_peer_info_received_response.users[0].pic
@@ -84,9 +98,11 @@ class KikBot(KikClientCallback):
                 logging.warning(f"No pic found for {admin_username}, authentication will not work.")
             self.admin_pics[admin_username] = pic
 
-        logging.info(f"Admin pics: {self.admin_pics}")
+        logging.info(f"Admin pics: {self.admin_pics} ({len(self.admin_pics)} total)")
 
     async def get_info_of_username(self, username: str) -> PeersInfoResponse:
+        logging.info(f"Requesting info for username {username}")
+        # TODO: timeout and return None if no response is received in 60 seconds
         self.client.request_info_of_username(username)
         logging.info(f"Requested info for username {username}")
         await self.info_event.wait()
@@ -95,8 +111,11 @@ class KikBot(KikClientCallback):
         return self.on_peer_info_received_response
 
     async def get_info_of_users(self, peer_jids: Union[str, List[str]]) -> PeersInfoResponse:
+
+        # TODO: timeout and return None if no response is received in 60 seconds
         self.client.request_info_of_users(peer_jids)
         logging.info(f"Requested info for peer jids: {peer_jids}")
+
 
         # Wait for on_peer_info_received to be called
         await self.info_event.wait()
@@ -218,6 +237,10 @@ class KikBot(KikClientCallback):
         if admin_username and "send_troll_message" in command and group_jid:
             logging.info(f"Sending troll message to group {group_jid}")
             self.send_troll_message(group_jid=group_jid)
+
+        if admin_username and "get_admin_info" in command:
+            logging.info(f"Getting admin info.")
+            await self.get_admin_info()
 
         pass
 
