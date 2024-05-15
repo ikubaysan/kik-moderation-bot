@@ -1,5 +1,5 @@
-import configparser
 import os
+import configparser
 from kik_unofficial.client import KikClient
 from kik_unofficial.callbacks import KikClientCallback
 from kik_unofficial.datatypes.xmpp.chatting import IncomingChatMessage, IncomingGroupChatMessage
