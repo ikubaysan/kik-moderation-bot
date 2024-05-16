@@ -68,13 +68,16 @@ class KikBot(KikClientCallback):
         #self.client.loop.create_task(self.schedule_get_admin_info())
         self.client.loop.create_task(self.get_admin_info())
         #self.client.loop.create_task(self.send_ping())
-        #self.client.loop.create_task(self.schedule_ping())
-        self.send_ping()
+        self.client.loop.create_task(self.schedule_ping())
+        #self.send_ping()
 
     async def schedule_ping(self):
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(10)
             self.send_ping()
+
+    def on_pong(self, response: chatting.KikPongResponse):
+        logging.info("Received pong.")
 
     async def schedule_get_admin_info(self):
         while True:  # This creates a continuous loop
